@@ -15,6 +15,13 @@
   const nodes = $derived(store.nodes[graph.id] ?? []);
   const g = $derived(layout(nodes));
 
+  // Terminal ("goal") nodes: no other node in this graph depends on them.
+  const terminalIds = $derived.by(() => {
+    const referenced = new Set<string>();
+    for (const n of nodes) for (const p of n.prerequisite_ids) referenced.add(p);
+    return new Set(nodes.filter((n) => !referenced.has(n.id) && nodes.length > 1).map((n) => n.id));
+  });
+
   // Neighborhood highlighting for selection.
   const neighborhood = $derived.by(() => {
     if (!selectedId) return null;
@@ -182,10 +189,12 @@
       {@const kids = childCount(pn.node)}
       {@const selected = pn.node.id === selectedId}
       {@const dim = isDim(pn.node.id)}
+      {@const terminal = terminalIds.has(pn.node.id)}
       <button
         class="node"
         class:selected
         class:dim
+        class:terminal
         style="
           left: {pn.x}px;
           top:  {pn.y}px;
@@ -198,6 +207,7 @@
         ondblclick={(ev) => { ev.stopPropagation(); if (pn.node.subgraph_id || kids >= 0) store.zoom(pn.node.id); }}
         title="Click to select · Double-click to dive in"
       >
+        {#if terminal}<span class="crown" aria-hidden="true">★</span>{/if}
         <span class="status-dot" aria-hidden="true"></span>
         <span class="node-title">{pn.node.title}</span>
         {#if kids > 0}
@@ -315,6 +325,47 @@
   .node.dim {
     opacity: 0.28;
     filter: saturate(0.5);
+  }
+
+  .node.terminal {
+    border-color: transparent;
+    background:
+      linear-gradient(180deg, #1e2230 0%, #171a24 100%) padding-box,
+      linear-gradient(135deg, #f5c76a, #e88bff 40%, #6ac4f5 80%, #f5c76a) border-box;
+    border: 1.8px solid transparent;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+      0 6px 20px rgba(0, 0, 0, 0.5),
+      0 0 32px rgba(245, 199, 106, 0.35);
+    animation: terminal-glow 3s ease-in-out infinite;
+  }
+  .node.terminal:hover {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+      0 10px 28px rgba(0, 0, 0, 0.6),
+      0 0 42px rgba(245, 199, 106, 0.5);
+  }
+  @keyframes terminal-glow {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset, 0 6px 20px rgba(0,0,0,0.5), 0 0 28px rgba(245, 199, 106, 0.3); }
+    50%      { box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset, 0 6px 20px rgba(0,0,0,0.5), 0 0 44px rgba(232, 139, 255, 0.45); }
+  }
+
+  .crown {
+    position: absolute;
+    top: -10px;
+    left: -6px;
+    font-size: 1rem;
+    background: linear-gradient(135deg, #f5c76a, #e88bff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 6px rgba(245, 199, 106, 0.6));
+    animation: sparkle 2.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes sparkle {
+    0%, 100% { transform: rotate(-8deg) scale(1); }
+    50%      { transform: rotate(-8deg) scale(1.15); filter: drop-shadow(0 0 10px rgba(232, 139, 255, 0.7)); }
   }
 
   .status-dot {

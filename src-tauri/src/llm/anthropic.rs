@@ -61,6 +61,26 @@ Respond with ONLY valid JSON matching this exact schema, no preamble, no code fe
   "expects": "one of: requires derivation | requires code | requires numeric answer | requires worked example"
 }"#;
 
+const SCRIPT_SYSTEM: &str = r#"You are writing a self-contained coaching prompt that will be pasted into ANOTHER AI harness (Claude Code, ChatGPT, a local model, etc.) with no prior context.
+
+You will receive:
+  1. A TARGET NODE — the ONE concept the learner wants to master right now.
+  2. The graph the target belongs to (JSON array of sibling concept nodes).
+  3. A parent-chain of enclosing graphs, from immediate parent outward.
+
+Your job: produce a prompt that instructs the receiving harness to teach ONLY the target node, using the surrounding graphs strictly as big-picture context — never as topics to teach or diverge into.
+
+Requirements for the script you output:
+- Address the receiving harness in the second person ("You are a tutor…"). Do NOT address the end user.
+- State the single learning goal (the target node) up front, in bold.
+- Explicitly instruct the harness to stay on the target and to treat sibling / ancestor nodes as background only. Warn against drifting.
+- Prescribe a proven learning technique — Socratic questioning with the Feynman rephrase check, or worked-example-then-fade, or retrieval-practice-then-elaboration. Pick ONE and name it, then describe the loop the harness should run.
+- Tell the harness to keep working with the learner — ask, check, correct, iterate — until the learner demonstrates genuine understanding (can explain in own words + solve a novel example). Do not stop early.
+- Include a brief "success criteria" section the harness can grade against.
+- Embed the target node's title and description verbatim, and include the surrounding graph JSON and parent chain in clearly labeled fenced blocks so the harness can consult them but knows they are context, not curriculum.
+
+Output ONLY the finished prompt text. No preamble, no explanation of what you did, no code fences around the whole thing. Markdown inside the prompt is fine and encouraged for structure."#;
+
 pub struct AnthropicProvider {
     api_key: String,
     model: String,
@@ -74,6 +94,42 @@ impl AnthropicProvider {
             model,
             client: reqwest::Client::new(),
         }
+    }
+
+    async fn call_text(&self, system: &str, user: String) -> Result<String> {
+        let body = json!({
+            "model": self.model,
+            "max_tokens": 4096,
+            "system": [{
+                "type": "text",
+                "text": system,
+                "cache_control": { "type": "ephemeral" }
+            }],
+            "messages": [{ "role": "user", "content": user }],
+        });
+        let resp = self
+            .client
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .context("anthropic request")?;
+        let status = resp.status();
+        let value: Value = resp.json().await.context("anthropic response body")?;
+        if !status.is_success() {
+            return Err(anyhow!("anthropic {}: {}", status, value));
+        }
+        let text = value
+            .get("content")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.iter().find(|b| b.get("type").and_then(|t| t.as_str()) == Some("text")))
+            .and_then(|b| b.get("text"))
+            .and_then(|t| t.as_str())
+            .ok_or_else(|| anyhow!("no text block in anthropic response: {}", value))?;
+        Ok(text.trim().to_string())
     }
 
     async fn call<T: for<'de> Deserialize<'de>>(&self, system: &str, user: String) -> Result<T> {
@@ -211,5 +267,9 @@ impl LlmProvider for AnthropicProvider {
                 })
                 .collect(),
         })
+    }
+
+    async fn create_learning_script(&self, context: &str) -> Result<String> {
+        self.call_text(SCRIPT_SYSTEM, context.to_string()).await
     }
 }

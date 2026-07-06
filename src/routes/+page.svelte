@@ -4,6 +4,8 @@
   import GraphView from "$lib/components/GraphView.svelte";
   import GraphBrowser from "$lib/components/GraphBrowser.svelte";
   import SettingsModal from "$lib/components/SettingsModal.svelte";
+  import VerificationModal from "$lib/components/VerificationModal.svelte";
+  import NodeEditor from "$lib/components/NodeEditor.svelte";
   import { fade, scale, fly, slide } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
 
@@ -12,6 +14,8 @@
   let selected = $state<Node | null>(null);
   let showSettings = $state(false);
   let sidebarHidden = $state(false);
+  let verifyingNode = $state<Node | null>(null);
+  let editorMode = $state<null | "create" | "edit">(null);
 
   onMount(() => { store.restoreMostRecent(); });
 
@@ -56,17 +60,11 @@
     return "#6b7180";
   }
 
-  async function onVerify(n: Node) {
-    const q = await api.requestVerification(n.id);
-    const answer = window.prompt(q.prompt);
-    if (answer == null) return;
-    const res = await api.submitAnswer(n.id, q, answer);
-    alert((res.passed ? "PASS: " : "FAIL: ") + res.feedback);
+  async function onDelete(n: Node) {
+    if (!confirm(`Delete "${n.title}"? Children will keep their other prerequisites.`)) return;
+    await api.deleteNode(n.id, false);
+    selected = null;
     await store.refresh();
-    if (selected) {
-      const ns = store.nodes[selected.graph_id] ?? [];
-      selected = ns.find((x) => x.id === selected!.id) ?? null;
-    }
   }
 </script>
 
@@ -94,18 +92,18 @@
     {/if}
 
     <div class="controls">
-      <button
-        class="icon-btn"
-        onclick={() => (sidebarHidden = !sidebarHidden)}
-        title={sidebarHidden ? "Show graph browser" : "Hide graph browser"}
-        aria-label="Toggle graph browser"
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="16" rx="2"/>
-          <line x1="9" y1="4" x2="9" y2="20"/>
-          {#if sidebarHidden}<line x1="5" y1="10" x2="7" y2="12"/><line x1="7" y1="12" x2="5" y2="14"/>{:else}<line x1="7" y1="10" x2="5" y2="12"/><line x1="5" y1="12" x2="7" y2="14"/>{/if}
-        </svg>
-      </button>
+      {#if sidebarHidden}
+        <button
+          class="icon-btn"
+          onclick={() => (sidebarHidden = false)}
+          title="Show graph browser"
+          aria-label="Show graph browser"
+        >
+          <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 3 L9 6 L5 9" />
+          </svg>
+        </button>
+      {/if}
       <button class="icon-btn" onclick={() => (showSettings = true)} title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
@@ -124,7 +122,7 @@
   <div class="body">
   {#if !sidebarHidden}
     <div class="sidebar-wrap" transition:slide={{ axis: "x", duration: 200, easing: cubicOut }}>
-      <GraphBrowser />
+      <GraphBrowser onCollapse={() => (sidebarHidden = true)} />
     </div>
   {/if}
 
@@ -151,8 +149,40 @@
         <div class="spinner"></div>
       </div>
     {/if}
+
+    {#if store.focus}
+      <button class="fab" onclick={() => (editorMode = "create")} title="Add node" aria-label="Add node">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    {/if}
   </main>
   </div>
+
+  {#if verifyingNode}
+    <VerificationModal
+      node={verifyingNode}
+      onClose={() => {
+        verifyingNode = null;
+        if (selected) {
+          const ns = store.nodes[selected.graph_id] ?? [];
+          selected = ns.find((x) => x.id === selected!.id) ?? null;
+        }
+      }}
+    />
+  {/if}
+
+  {#if editorMode && store.focus}
+    <NodeEditor
+      mode={editorMode}
+      graphId={store.focus.id}
+      existing={editorMode === "edit" ? selected : null}
+      onClose={() => (editorMode = null)}
+      onSaved={(n) => { if (editorMode === "edit") selected = n; }}
+    />
+  {/if}
 
   {#if selected}
     <aside class="detail" in:fly={{ x: 20, duration: 240, easing: cubicOut }} out:fly={{ x: 20, duration: 180 }}>
@@ -174,7 +204,11 @@
         <button class="primary" onclick={() => { const id = selected!.id; selected = null; store.zoom(id); }}>
           Dive in ↓
         </button>
-        <button onclick={() => onVerify(selected!)}>Verify</button>
+        <button onclick={() => (verifyingNode = selected)}>Verify</button>
+      </div>
+      <div class="detail-actions secondary">
+        <button onclick={() => (editorMode = "edit")}>Edit</button>
+        <button class="danger" onclick={() => onDelete(selected!)}>Delete</button>
       </div>
       <p class="tip">Double-click a node to dive in · Scroll to zoom · Drag to pan</p>
     </aside>
@@ -415,5 +449,36 @@
   .meta-fact { font-size: 0.72rem; color: #6b7180; }
   .detail-actions { display: flex; gap: 6px; margin-top: 2px; }
   .detail-actions button { flex: 1; }
+  .detail-actions.secondary button {
+    background: transparent;
+    border: 1px solid #2a2f3c;
+    color: #9aa0ae;
+    font-size: 0.76rem;
+    padding: 5px 10px;
+  }
+  .detail-actions.secondary button:hover { color: #e7e9ee; background: #1c2030; }
+  .detail-actions.secondary .danger { color: #e57575; border-color: rgba(229, 117, 117, 0.3); }
+  .detail-actions.secondary .danger:hover { background: rgba(229, 117, 117, 0.1); color: #ff9090; }
+
+  .fab {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3a5da8, #2a4a90);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(58, 93, 168, 0.5);
+    transition: transform 160ms, box-shadow 200ms;
+    z-index: 10;
+  }
+  .fab:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 12px 30px rgba(58, 93, 168, 0.6); }
+  .fab:active { transform: translateY(0); }
   .tip { margin: 4px 0 0; font-size: 0.7rem; color: #6b7180; line-height: 1.5; }
 </style>

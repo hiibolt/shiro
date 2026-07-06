@@ -63,4 +63,9 @@ pub trait LlmProvider: Send + Sync {
         question: &VerificationQuestion,
         user_answer: &str,
     ) -> Result<VerificationResult>;
+
+    /// Produce a self-contained coaching script that another AI harness (Claude Code,
+    /// ChatGPT, etc.) can be dropped into. The `context` string is fully assembled by
+    /// the service — providers just wrap it with their script-crafting system prompt.
+    async fn create_learning_script(&self, context: &str) -> Result<String>;
 }

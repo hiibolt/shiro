@@ -56,6 +56,36 @@ pub async fn zoom_into_node(
 }
 
 #[tauri::command]
+pub async fn create_node(
+    state: State<'_, AppState>,
+    graph_id: Uuid,
+    title: String,
+    description: String,
+    prerequisite_ids: Vec<Uuid>,
+) -> Result<Node, String> {
+    state
+        .service
+        .create_node(graph_id, title, description, prerequisite_ids)
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn update_node_meta(
+    state: State<'_, AppState>,
+    node_id: Uuid,
+    title: String,
+    description: String,
+    prerequisite_ids: Vec<Uuid>,
+) -> Result<Node, String> {
+    state
+        .service
+        .update_node_meta(node_id, title, description, prerequisite_ids)
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
 pub async fn update_node_status(
     state: State<'_, AppState>,
     node_id: Uuid,
@@ -118,6 +148,18 @@ fn merge_secrets(current: &LlmConfig, incoming: LlmConfig) -> LlmConfig {
         },
         (_, incoming) => incoming,
     }
+}
+
+#[tauri::command]
+pub async fn create_learning_script(
+    state: State<'_, AppState>,
+    node_id: Uuid,
+) -> Result<String, String> {
+    state
+        .service
+        .create_learning_script(node_id)
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]

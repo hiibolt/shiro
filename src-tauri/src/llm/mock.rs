@@ -97,4 +97,10 @@ impl LlmProvider for MockLlm {
             suggested_new_prereqs: vec![],
         })
     }
+
+    async fn create_learning_script(&self, context: &str) -> Result<String> {
+        Ok(format!(
+            "# Mock coaching script\n\nYou are a tutor. Teach ONLY the target node below using Socratic questioning + Feynman rephrase check. Do not drift into sibling nodes. Keep iterating until the learner can explain it in their own words and solve a novel example.\n\n## Context\n\n{context}\n"
+        ))
+    }
 }

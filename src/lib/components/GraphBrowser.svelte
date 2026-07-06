@@ -5,6 +5,11 @@
   import { cubicOut } from "svelte/easing";
   import GraphTreeItem from "./GraphTreeItem.svelte";
 
+  interface Props {
+    onCollapse: () => void;
+  }
+  let { onCollapse }: Props = $props();
+
   let creating = $state(false);
   let goal = $state("");
 
@@ -44,9 +49,16 @@
 <aside class="browser">
   <div class="head">
     <span class="head-title">Graphs</span>
-    <button class="new-btn" onclick={() => (creating = !creating)} title="New graph">
-      {creating ? "×" : "+"}
-    </button>
+    <div class="head-actions">
+      <button class="head-btn" onclick={() => (creating = !creating)} title="New graph">
+        {creating ? "×" : "+"}
+      </button>
+      <button class="head-btn" onclick={onCollapse} title="Hide graph browser" aria-label="Hide">
+        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 3 L3 6 L7 9" />
+        </svg>
+      </button>
+    </div>
   </div>
 
   {#if creating}
@@ -112,7 +124,8 @@
     color: #6b7180;
     font-weight: 600;
   }
-  .new-btn {
+  .head-actions { display: flex; gap: 4px; }
+  .head-btn {
     width: 24px;
     height: 24px;
     display: flex;
@@ -125,9 +138,10 @@
     cursor: pointer;
     font-size: 1rem;
     line-height: 1;
+    padding: 0;
     transition: background 160ms, color 160ms, border-color 160ms;
   }
-  .new-btn:hover { background: #242a3c; color: #e7e9ee; border-color: #3a4053; }
+  .head-btn:hover { background: #242a3c; color: #e7e9ee; border-color: #3a4053; }
 
   .create-panel {
     display: flex;

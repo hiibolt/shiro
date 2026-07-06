@@ -44,10 +44,13 @@ pub fn run() {
             commands::list_root_graphs,
             commands::list_nodes,
             commands::zoom_into_node,
+            commands::create_node,
+            commands::update_node_meta,
             commands::update_node_status,
             commands::delete_node,
             commands::request_verification,
             commands::submit_answer,
+            commands::create_learning_script,
             commands::get_llm_config,
             commands::set_llm_config,
         ])

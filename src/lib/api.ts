@@ -46,12 +46,18 @@ export const api = {
   zoomIntoNode: (nodeId: string) => invoke<Graph>("zoom_into_node", { nodeId }),
   updateNodeStatus: (nodeId: string, status: MasteryStatus) =>
     invoke<Node>("update_node_status", { nodeId, status }),
+  createNode: (graphId: string, title: string, description: string, prerequisiteIds: string[]) =>
+    invoke<Node>("create_node", { graphId, title, description, prerequisiteIds }),
+  updateNodeMeta: (nodeId: string, title: string, description: string, prerequisiteIds: string[]) =>
+    invoke<Node>("update_node_meta", { nodeId, title, description, prerequisiteIds }),
   deleteNode: (nodeId: string, orphanChildren: boolean) =>
     invoke<void>("delete_node", { nodeId, orphanChildren }),
   requestVerification: (nodeId: string) =>
     invoke<VerificationQuestion>("request_verification", { nodeId }),
   submitAnswer: (nodeId: string, question: VerificationQuestion, answer: string) =>
     invoke<VerificationResult>("submit_answer", { nodeId, question, answer }),
+  createLearningScript: (nodeId: string) =>
+    invoke<string>("create_learning_script", { nodeId }),
   getLlmConfig: () => invoke<LlmConfig>("get_llm_config"),
   setLlmConfig: (config: LlmConfig) => invoke<void>("set_llm_config", { config }),
 };

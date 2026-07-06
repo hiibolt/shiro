@@ -46,4 +46,7 @@ impl LlmProvider for OllamaProvider {
     ) -> Result<VerificationResult> {
         Err(todo())
     }
+    async fn create_learning_script(&self, _context: &str) -> Result<String> {
+        Err(todo())
+    }
 }
